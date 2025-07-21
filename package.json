@@ -1,0 +1,26 @@
+{
+  "name": "agg-sandbox-bridge-test",
+  "version": "1.0.0",
+  "description": "Bridge asset test for AggLayer sandbox",
+  "main": "dist/test-bridge-asset.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "ts-node src/test-bridge-asset.ts",
+    "start": "node dist/test-bridge-asset.js",
+    "bridge": "ts-node src/run-bridge-asset.ts",
+    "bridge:amount": "ts-node src/run-bridge-asset.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
+  "keywords": ["blockchain", "bridge", "polygon", "agglayer"],
+  "author": "",
+  "license": "MIT"
+} 

@@ -9,6 +9,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {GlobalExitRootManagerL2SovereignChain} from "../src/GlobalExitRootManagerL2SovereignChain.sol";
 import {AggERC20} from "../src/mocks/AggERC20.sol";
 import {BridgeExtension} from "../src/BridgeExtension.sol";
+import {SimpleERC20} from "../src/mocks/SimpleERC20.sol";
 
 contract DeployContractsL2 is Script {
     function run() external {
@@ -48,6 +49,7 @@ contract DeployContractsL2 is Script {
         globalExitRootManagerL2SovereignChain.initialize(deployer, address(0));
 
         AggERC20 aggERC20 = new AggERC20(deployer, deployer, 1000000);
+        SimpleERC20 simpleERC20 = new SimpleERC20(1000000);
 
         BridgeExtension bridgeExtension = new BridgeExtension(address(polygonZkEVMBridgeV2));
 
@@ -58,6 +60,7 @@ contract DeployContractsL2 is Script {
         console2.log("PolygonZkEVMTimelock:   ", address(polygonZkEVMTimelock));
         console2.log("GlobalExitRootManagerL2SovereignChain:   ", address(globalExitRootManagerL2SovereignChain));
         console2.log("AggERC20:              ", address(aggERC20));
+        console2.log("SimpleERC20:           ", address(simpleERC20));
         console2.log("BridgeExtension:       ", address(bridgeExtension));
     }
 }

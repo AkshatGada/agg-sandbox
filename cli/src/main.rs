@@ -15,7 +15,7 @@ mod progress;
 mod types;
 mod validation;
 
-use commands::ShowCommands;
+use commands::{BridgeCommands, ShowCommands};
 use error::Result;
 use logging::LogConfig;
 use tracing::{error, info, warn};
@@ -126,6 +126,14 @@ enum Commands {
         #[command(subcommand)]
         subcommand: ShowCommands,
     },
+    /// 🌉 Execute bridge operations (asset transfers, claims, messages)
+    #[command(
+        long_about = "Execute bridge operations using direct smart contract interactions.\n\nPerform cross-chain asset transfers, claim bridged assets, and send messages\nbetween L1 and L2 networks with user-friendly commands.\n\nExamples:\n  aggsandbox bridge asset --network 0 --destination-network 1 --amount 0.1 --token-address 0x0000...\n  aggsandbox bridge claim --network 1 --tx-hash 0xabc... --source-network 0\n  aggsandbox bridge message --network 0 --destination-network 1 --target 0x123... --data 0xabc..."
+    )]
+    Bridge {
+        #[command(subcommand)]
+        subcommand: BridgeCommands,
+    },
     /// 📡 Fetch and display blockchain events
     #[command(
         long_about = "Monitor blockchain events from L1 and L2 chains.\n\nFetch and display recent events from specified blockchain,\nwith options to filter by contract address and block range.\n\nExamples:\n  aggsandbox events --network-id 0                # Recent L1 events\n  aggsandbox events --network-id 1 --blocks 20    # Last 20 blocks from first L2\n  aggsandbox events --network-id 0 --address 0x123 # Events from specific contract\n\nLegacy (deprecated) examples:\n  aggsandbox events --chain anvil-l1              # Use --network-id 0 instead"
@@ -149,9 +157,35 @@ enum Commands {
         #[arg(short = 'a', long, help = "Contract address to filter events (0x...)")]
         address: Option<String>,
     },
+    /// 💸  Sponsor a bridge claim (build proofs → POST to AggKit)
+    #[command(long_about = "Submit a bridge claim to the Claim-Sponsor bot.\n\
+        \n\
+        This command performs all steps automatically:\n\
+        1. Computes the global index from --deposit and --l2-from.\n\
+        2. Calls the AggKit REST API to fetch Merkle proofs.\n\
+        3. Assembles the JSON body required by `/bridge/v1/sponsor-claim`.\n\
+        4. Posts the claim.\n\
+        \n\
+        Examples:\n\
+        \n\
+        • L1 deposit #41 (origin network = 0):\n\
+        \x20  aggsandbox sponsor-claim --deposit 41\n\
+        \n\
+        • L2→L1 deposit #3 that originated on roll-up 1101:\n\
+        \x20  aggsandbox sponsor-claim --deposit 3 --l2-from 1101 --wait\n")]
+    SponsorClaim {
+        /// Deposit counter on the *origin* chain (starts at 0)
+        #[arg(short = 'd', long)]
+        deposit: u32,
+
+        /// Roll-up ID the deposit originated on (omit or 0 for L1)
+        #[arg(long, default_value_t = 0)]
+        l2_from: u32,
+    },
 }
 
 #[tokio::main]
+#[allow(clippy::disallowed_methods)] // Allow std::process::exit in main and tracing macros
 async fn main() {
     let cli = Cli::parse();
 
@@ -167,6 +201,7 @@ async fn main() {
     }
 }
 
+#[allow(clippy::disallowed_methods)] // Allow tracing macros
 async fn run(cli: Cli) -> Result<()> {
     info!("Starting AggSandbox CLI v0.1.0");
 
@@ -246,6 +281,10 @@ async fn run(cli: Cli) -> Result<()> {
             info!(subcommand = ?subcommand, "Executing show command");
             commands::handle_show(subcommand).await
         }
+        Commands::Bridge { subcommand } => {
+            info!(subcommand = ?subcommand, "Executing bridge command");
+            commands::handle_bridge(subcommand).await
+        }
         Commands::Events {
             network_id,
             chain,
@@ -254,6 +293,11 @@ async fn run(cli: Cli) -> Result<()> {
         } => {
             info!(network_id = ?network_id, chain = ?chain, blocks = blocks, address = ?address, "Executing events command");
             commands::handle_events(network_id, chain, blocks, address).await
+        }
+        Commands::SponsorClaim { deposit, l2_from } => {
+            info!(deposit, l2_from, "Executing sponsor-claim command");
+            commands::handle_sponsor_claim(deposit, l2_from).await?;
+            Ok(())
         }
     };
 
@@ -265,7 +309,8 @@ async fn run(cli: Cli) -> Result<()> {
     result
 }
 
-/// Initialize logging based on CLI configuration
+/// Initialize logging based on CLI configuration  
+#[allow(clippy::disallowed_methods)] // Allow for error propagation and print functions
 fn initialize_logging(cli: &Cli) -> Result<()> {
     let level = logging::level_from_verbosity(cli.verbose, cli.quiet);
     let format = logging::format_from_str(&cli.log_format).map_err(|e| {
